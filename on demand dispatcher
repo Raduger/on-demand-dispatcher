@@ -1,0 +1,134 @@
+# app.py
+# On-Demand Driver Dispatcher — Full UTF-8 Safe Version
+# Modes: Dispatcher, Admin, Driver | EN/DE/FR/IT | Agreements | Swiss Companies
+
+import streamlit as st
+import sqlite3
+from datetime import datetime
+
+# ---------------- PAGE CONFIG ----------------
+st.set_page_config(page_title="Driver Dispatcher", layout="centered")
+
+# ---------------- LANGUAGE ----------------
+LANG = st.sidebar.selectbox("Language / Sprache / Langue / Lingua", ["EN", "DE", "FR", "IT"])
+
+T = {
+    "EN": {"title":"On-Demand Driver Dispatcher","mode":"Mode","dispatcher":"Dispatcher","admin":"Admin","driver":"Driver",
+           "request_driver":"Request a Driver","company":"Company Name","phone":"Phone Number","canton":"Canton",
+           "urgency":"Urgency","normal":"Normal","urgent":"Urgent","emergency":"Emergency","details":"Job Details",
+           "submit":"Submit Request","pending":"Pending Requests","pin":"Enter Admin PIN","invalid_pin":"Invalid PIN",
+           "company_agree":"I accept the Transport Company Agreement","driver_agree":"I accept the Driver Agreement",
+           "must_accept":"You must accept both agreements to submit","submitted":"Request submitted successfully",
+           "drivers_header":"Driver Management","add_driver":"Add Driver","driver_name":"Driver Name","available":"Available Today",
+           "driver_list":"Current Drivers","availability_set":"Availability updated"},
+    "DE": {"title":"Fahrer-Dispositionsplattform","mode":"Modus","dispatcher":"Disposition","admin":"Admin","driver":"Fahrer",
+           "request_driver":"Fahrer anfordern","company":"Firmenname","phone":"Telefonnummer","canton":"Kanton",
+           "urgency":"Dringlichkeit","normal":"Normal","urgent":"Dringend","emergency":"Notfall","details":"Auftragsdetails",
+           "submit":"Anfrage absenden","pending":"Offene Anfragen","pin":"Admin-PIN eingeben","invalid_pin":"Ungültiger PIN",
+           "company_agree":"Ich akzeptiere die Transportfirmen-Vereinbarung","driver_agree":"Ich akzeptiere die Fahrer-Vereinbarung",
+           "must_accept":"Beide Vereinbarungen müssen akzeptiert werden","submitted":"Anfrage erfolgreich übermittelt",
+           "drivers_header":"Fahrerverwaltung","add_driver":"Fahrer hinzufügen","driver_name":"Name des Fahrers","available":"Heute verfügbar",
+           "driver_list":"Aktuelle Fahrer","availability_set":"Verfügbarkeit aktualisiert"},
+    "FR": {"title":"Plateforme de dispatch de chauffeurs","mode":"Mode","dispatcher":"Dispatch","admin":"Admin","driver":"Chauffeur",
+           "request_driver":"Demander un chauffeur","company":"Nom de l’entreprise","phone":"Téléphone","canton":"Canton",
+           "urgency":"Urgence","normal":"Normal","urgent":"Urgent","emergency":"Critique","details":"Détails de la mission",
+           "submit":"Envoyer la demande","pending":"Demandes en attente","pin":"Entrer le PIN admin","invalid_pin":"PIN incorrect",
+           "company_agree":"J’accepte l’accord entreprise de transport","driver_agree":"J’accepte l’accord chauffeur",
+           "must_accept":"Les deux accords sont obligatoires pour envoyer la demande","submitted":"Demande envoyée avec succès",
+           "drivers_header":"Gestion des chauffeurs","add_driver":"Ajouter un chauffeur","driver_name":"Nom du chauffeur","available":"Disponible aujourd'hui",
+           "driver_list":"Chauffeurs actuels","availability_set":"Disponibilité mise à jour"},
+    "IT": {"title":"Piattaforma di assegnazione autisti","mode":"Modalità","dispatcher":"Assegnazione","admin":"Admin","driver":"Autista",
+           "request_driver":"Richiedi un autista","company":"Nome azienda","phone":"Telefono","canton":"Cantone",
+           "urgency":"Urgenza","normal":"Normale","urgent":"Urgente","emergency":"Emergenza","details":"Dettagli lavoro",
+           "submit":"Invia richiesta","pending":"Richieste in sospeso","pin":"Inserisci PIN admin","invalid_pin":"PIN non valido",
+           "company_agree":"Accetto l’accordo azienda di trasporto","driver_agree":"Accetto l’accordo autista",
+           "must_accept":"Devi accettare entrambi gli accordi per inviare la richiesta","submitted":"Richiesta inviata con successo",
+           "drivers_header":"Gestione Autisti","add_driver":"Aggiungi Autista","driver_name":"Nome Autista","available":"Disponibile oggi",
+           "driver_list":"Autisti attuali","availability_set":"Disponibilità aggiornata"}
+}
+
+# ---------------- DATABASE ----------------
+conn = sqlite3.connect("dispatcher.db", check_same_thread=False)
+c = conn.cursor()
+c.execute("""CREATE TABLE IF NOT EXISTS requests (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    company TEXT, phone TEXT, canton TEXT, urgency TEXT,
+    message TEXT, created_at TEXT
+)""")
+c.execute("CREATE TABLE IF NOT EXISTS admin (pin TEXT)")
+c.execute("INSERT OR IGNORE INTO admin VALUES ('200170')")
+c.execute("""CREATE TABLE IF NOT EXISTS drivers (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT,
+    available INTEGER
+)""")
+conn.commit()
+
+# ---------------- SWISS TRANSPORT COMPANIES ----------------
+companies = [
+    "DHL Logistics (Schweiz) AG", "Planzer Holding AG", "Galliker Transport AG", 
+    "Kuehne + Nagel International AG", "Schenker Schweiz AG", "CEVA Logistics", 
+    "Gebrüder Weiss AG", "Rhenus Logistics AG", "UPS SCS (Switzerland) GmbH"
+]
+
+# ---------------- UI ----------------
+st.title(T[LANG]["title"])
+mode = st.sidebar.radio(T[LANG]["mode"], [T[LANG]["dispatcher"], T[LANG]["driver"], T[LANG]["admin"]])
+
+# ---------------- DISPATCHER ----------------
+if mode == T[LANG]["dispatcher"]:
+    st.subheader(T[LANG]["request_driver"])
+
+    company = st.selectbox(T[LANG]["company"], companies)
+    phone = st.text_input(T[LANG]["phone"])
+    canton = st.selectbox(T[LANG]["canton"], ["SO", "BE", "AG", "BL", "BS", "JU"])
+    urgency = st.selectbox(T[LANG]["urgency"], [T[LANG]["normal"], T[LANG]["urgent"], T[LANG]["emergency"]])
+    message = st.text_area(T[LANG]["details"])
+
+    st.markdown("### Agreements")
+    agree_company = st.checkbox(T[LANG]["company_agree"])
+    agree_driver = st.checkbox(T[LANG]["driver_agree"])
+
+    if st.button(T[LANG]["submit"]):
+        if not (agree_company and agree_driver):
+            st.error(T[LANG]["must_accept"])
+        else:
+            c.execute("INSERT INTO requests (company, phone, canton, urgency, message, created_at) VALUES (?,?,?,?,?,?)",
+                      (company, phone, canton, urgency, message, datetime.now().isoformat()))
+            conn.commit()
+            st.success(T[LANG]["submitted"])
+
+    st.subheader(T[LANG]["pending"])
+    rows = c.execute("SELECT company, urgency, created_at FROM requests ORDER BY id DESC").fetchall()
+    st.table(rows)
+
+# ---------------- DRIVER ----------------
+elif mode == T[LANG]["driver"]:
+    st.subheader(T[LANG]["drivers_header"])
+    name = st.text_input(T[LANG]["driver_name"])
+    available = st.checkbox(T[LANG]["available"])
+    if st.button(T[LANG]["add_driver"]):
+        c.execute("INSERT INTO drivers (name, available) VALUES (?,?)", (name, int(available)))
+        conn.commit()
+        st.success(T[LANG]["availability_set"])
+
+    st.subheader(T[LANG]["driver_list"])
+    rows = c.execute("SELECT name, available FROM drivers ORDER BY id DESC").fetchall()
+    st.table([(r[0], "Yes" if r[1] else "No") for r in rows])
+
+# ---------------- ADMIN ----------------
+else:
+    st.subheader("Admin")
+    pin = st.text_input(T[LANG]["pin"], type="password")
+    real_pin = c.execute("SELECT pin FROM admin").fetchone()[0]
+    if pin != real_pin:
+        st.error(T[LANG]["invalid_pin"])
+    else:
+        st.success("Access granted")
+        rows = c.execute("SELECT company, phone, canton, urgency, message, created_at FROM requests ORDER BY id DESC").fetchall()
+        st.subheader(T[LANG]["pending"])
+        st.table(rows)
+
+        st.subheader(T[LANG]["drivers_header"])
+        driver_rows = c.execute("SELECT name, available FROM drivers ORDER BY id DESC").fetchall()
+        st.table([(r[0], "Yes" if r[1] else "No") for r in driver_rows])
