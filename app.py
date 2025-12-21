@@ -1,239 +1,286 @@
+# -*- coding: utf-8 -*-
+# app.py
+# On-Demand Driver Dispatcher – STABLE v3 (Admin + Driver Portal)
+
 import streamlit as st
 import sqlite3
-import datetime
-import os
+from datetime import datetime
 
-# ---------------- CONFIG ----------------
-DB_NAME = "dispatcher.db"
-APP_TITLE = "On-Demand Dispatcher"
-LOGO_PATH = "truck.jpeg"
+# ---------------- PAGE CONFIG ----------------
+st.set_page_config(
+    page_title="On-Demand Driver Dispatcher",
+    layout="centered"
+)
 
-COMPANIES = [
-    "A", "B", "C", "D", "E", "F", "G", "I", "M", "S"
-]
-
-LANGUAGES = ["EN", "DE", "FR", "IT"]
-
-# ---------------- DB CONNECTION ----------------
-conn = sqlite3.connect(DB_NAME, check_same_thread=False)
+# ---------------- DATABASE ----------------
+conn = sqlite3.connect("dispatcher.db", check_same_thread=False)
 c = conn.cursor()
 
-# ---------------- DB SCHEMA ----------------
-c.execute("""
-CREATE TABLE IF NOT EXISTS requests (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    company TEXT NOT NULL,
-    phone TEXT NOT NULL,
-    canton TEXT NOT NULL,
-    urgency TEXT NOT NULL,
-    message TEXT NOT NULL,
-    created_at TEXT,
-    status TEXT DEFAULT 'Pending',
-    assigned_driver TEXT
+# ---------------- LANGUAGE ----------------
+LANG = st.sidebar.selectbox(
+    "Language / Sprache / Langue / Lingua",
+    ["EN", "DE", "FR", "IT"]
 )
-""")
 
-c.execute("""
-CREATE TABLE IF NOT EXISTS drivers (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL,
-    canton TEXT NOT NULL,
-    available INTEGER DEFAULT 0
-)
-""")
+T = {
+    "EN": {
+        "title": "On-Demand Driver Dispatcher",
+        "mode": "Mode",
+        "dispatcher": "Dispatcher",
+        "driver": "Driver",
+        "admin": "Admin",
+        "company": "Company",
+        "phone": "Phone",
+        "canton": "Canton",
+        "urgency": "Urgency",
+        "details": "Job details",
+        "submit": "Submit request",
+        "success": "Request submitted",
+        "agree_company": "I accept the Transport Company Agreement",
+        "agree_driver": "I accept the Driver Agreement",
+        "must_accept": "You must accept both agreements",
+        "fill_all": "Please fill all required fields",
+        "driver_pin": "Driver PIN",
+        "invalid_pin": "Invalid PIN",
+        "assigned_jobs": "Your assigned jobs",
+        "complete": "Mark job completed",
+        "admin_pin": "Admin PIN",
+        "invalid": "Invalid PIN",
+        "assign": "Assign driver",
+        "completed": "Completed"
+    },
+    "DE": {
+        "title": "Fahrer-Dispositionsplattform",
+        "mode": "Modus",
+        "dispatcher": "Disposition",
+        "driver": "Fahrer",
+        "admin": "Admin",
+        "company": "Firma",
+        "phone": "Telefon",
+        "canton": "Kanton",
+        "urgency": "Dringlichkeit",
+        "details": "Auftragsdetails",
+        "submit": "Anfrage senden",
+        "success": "Anfrage gesendet",
+        "agree_company": "Ich akzeptiere die Transportfirmen-Vereinbarung",
+        "agree_driver": "Ich akzeptiere die Fahrer-Vereinbarung",
+        "must_accept": "Beide Vereinbarungen sind Pflicht",
+        "fill_all": "Bitte alle Pflichtfelder ausfüllen",
+        "driver_pin": "Fahrer-PIN",
+        "invalid_pin": "Ungültiger PIN",
+        "assigned_jobs": "Zugewiesene Aufträge",
+        "complete": "Auftrag abschließen",
+        "admin_pin": "Admin-PIN",
+        "invalid": "Ungültiger PIN",
+        "assign": "Fahrer zuweisen",
+        "completed": "Abgeschlossen"
+    },
+    "FR": {
+        "title": "Plateforme de dispatch chauffeurs",
+        "mode": "Mode",
+        "dispatcher": "Dispatch",
+        "driver": "Chauffeur",
+        "admin": "Admin",
+        "company": "Entreprise",
+        "phone": "Téléphone",
+        "canton": "Canton",
+        "urgency": "Urgence",
+        "details": "Détails",
+        "submit": "Envoyer",
+        "success": "Demande envoyée",
+        "agree_company": "J’accepte l’accord entreprise",
+        "agree_driver": "J’accepte l’accord chauffeur",
+        "must_accept": "Accords obligatoires",
+        "fill_all": "Veuillez remplir tous les champs",
+        "driver_pin": "PIN chauffeur",
+        "invalid_pin": "PIN incorrect",
+        "assigned_jobs": "Missions assignées",
+        "complete": "Mission terminée",
+        "admin_pin": "PIN admin",
+        "invalid": "PIN incorrect",
+        "assign": "Assigner chauffeur",
+        "completed": "Terminée"
+    },
+    "IT": {
+        "title": "Piattaforma di assegnazione autisti",
+        "mode": "Modalità",
+        "dispatcher": "Assegnazione",
+        "driver": "Autista",
+        "admin": "Admin",
+        "company": "Azienda",
+        "phone": "Telefono",
+        "canton": "Cantone",
+        "urgency": "Urgenza",
+        "details": "Dettagli",
+        "submit": "Invia richiesta",
+        "success": "Richiesta inviata",
+        "agree_company": "Accetto l’accordo azienda",
+        "agree_driver": "Accetto l’accordo autista",
+        "must_accept": "Accordi obbligatori",
+        "fill_all": "Compila tutti i campi",
+        "driver_pin": "PIN autista",
+        "invalid_pin": "PIN non valido",
+        "assigned_jobs": "Lavori assegnati",
+        "complete": "Segna completato",
+        "admin_pin": "PIN admin",
+        "invalid": "PIN non valido",
+        "assign": "Assegna autista",
+        "completed": "Completato"
+    }
+}
 
-c.execute("""
-CREATE TABLE IF NOT EXISTS admin (
-    pin TEXT PRIMARY KEY
-)
-""")
+# ---------------- COMPANIES ----------------
+companies = [
+    "Planzer Holding AG", "Galliker Transport AG", "Kühne + Nagel (Schweiz) AG",
+    "DB Schenker Schweiz AG", "Gebrüder Weiss AG", "Rhenus Logistics Schweiz AG",
+    "CEVA Logistics Switzerland", "DSV Air & Sea AG", "Gondrand International AG",
+    "Welti-Furrer AG", "Schöni Transport AG", "Bertschi AG",
+    "Emil Egger AG", "Sieber Transport AG", "Post CH AG"
+]
 
-c.execute("""
-CREATE TABLE IF NOT EXISTS coverage (
-    canton TEXT PRIMARY KEY,
-    enabled INTEGER DEFAULT 1
-)
-""")
+# ---------------- UI ----------------
+st.title(T[LANG]["title"])
+mode = st.radio(T[LANG]["mode"], [
+    T[LANG]["dispatcher"],
+    T[LANG]["driver"],
+    T[LANG]["admin"]
+])
 
-c.execute("""
-CREATE TABLE IF NOT EXISTS blacklist (
-    company TEXT PRIMARY KEY
-)
-""")
+# =========================
+# DISPATCHER
+# =========================
+if mode == T[LANG]["dispatcher"]:
+    company = st.selectbox(T[LANG]["company"], companies)
+    phone = st.text_input(T[LANG]["phone"])
+    canton = st.selectbox(T[LANG]["canton"], ["SO", "BE", "AG", "BL", "BS", "JU"])
+    urgency = st.selectbox(T[LANG]["urgency"], ["Normal", "Urgent", "Emergency"])
+    message = st.text_area(T[LANG]["details"])
 
-c.execute("""
-CREATE TABLE IF NOT EXISTS whitelist (
-    company TEXT PRIMARY KEY
-)
-""")
+    st.markdown("### Agreements")
+    st.markdown("""
+    **Transport Company Agreement**
+    - Drivers are independent contractors  
+    - Hourly billing applies  
+    - Payment due within 14 days  
 
-c.execute("""
-INSERT OR IGNORE INTO admin (pin) VALUES ('200170')
-""")
+    **Driver Agreement**
+    - Driver works as freelancer  
+    - Accepts dispatched jobs voluntarily  
+    """)
 
-conn.commit()
+    agree_company = st.checkbox(T[LANG]["agree_company"])
+    agree_driver = st.checkbox(T[LANG]["agree_driver"])
 
-# ---------------- UI HEADER ----------------
-st.set_page_config(page_title=APP_TITLE, layout="centered")
-
-if os.path.exists(LOGO_PATH):
-    st.image(LOGO_PATH, width=120)
-
-st.title(APP_TITLE)
-
-LANG = st.selectbox("Language", LANGUAGES)
-
-# ---------------- AGREEMENTS ----------------
-with st.expander("📄 Agreements"):
-    st.subheader("Transport Company Agreement")
-    st.write("""
-• Drivers are independent contractors  
-• Hourly billing applies  
-• Payment due within 14 days  
-""")
-
-    st.subheader("Driver Agreement")
-    st.write("""
-• Driver works as freelancer  
-• Accepts dispatched jobs voluntarily  
-""")
-
-# ---------------- ROLE SELECTION ----------------
-role = st.radio("Login as:", ["Dispatcher", "Driver", "Admin"])
-
-# =================================================
-# 🚚 DISPATCHER
-# =================================================
-if role == "Dispatcher":
-    st.subheader("📦 Create Dispatch Request")
-
-    company = st.selectbox("Company", COMPANIES)
-    phone = st.text_input("Phone")
-    canton = st.selectbox("Canton", ["ZH", "BE", "LU", "AG", "SG", "TI"])
-    urgency = st.selectbox("Urgency", ["Normal", "Urgent"])
-    message = st.text_area("Message")
-
-    if st.button("Submit Request"):
-        if not all([company, phone, canton, urgency, message]):
-            st.error("❌ All fields are required")
-            st.stop()
-
-        # blacklist check
-        blocked = c.execute(
-            "SELECT 1 FROM blacklist WHERE company=?",
-            (company,)
-        ).fetchone()
-        if blocked:
-            st.error("🚫 Company blocked")
-            st.stop()
-
-        # find available driver by canton
-        driver = c.execute("""
-            SELECT name FROM drivers
-            WHERE canton=? AND available=1
-            LIMIT 1
-        """, (canton,)).fetchone()
-
-        assigned = driver[0] if driver else "Unassigned"
-
-        c.execute("""
-            INSERT INTO requests
-            (company, phone, canton, urgency, message, created_at, assigned_driver)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-        """, (
-            company,
-            phone,
-            canton,
-            urgency,
-            message,
-            datetime.datetime.now().isoformat(),
-            assigned
-        ))
-
-        if driver:
+    if st.button(T[LANG]["submit"]):
+        if not phone or not message:
+            st.error(T[LANG]["fill_all"])
+        elif not (agree_company and agree_driver):
+            st.error(T[LANG]["must_accept"])
+        else:
             c.execute("""
-                UPDATE drivers SET available=0 WHERE name=?
-            """, (assigned,))
-
-        conn.commit()
-        st.success("✅ Request submitted")
-
-# =================================================
-# 🚛 DRIVER
-# =================================================
-elif role == "Driver":
-    st.subheader("🚛 Driver Portal")
-
-    name = st.text_input("Your Name")
-    canton = st.selectbox("Your Canton", ["ZH", "BE", "LU", "AG", "SG", "TI"])
-    available = st.checkbox("Available")
-
-    if st.button("Save Availability"):
-        if not name:
-            st.error("Name required")
-            st.stop()
-
-        c.execute("""
-            INSERT OR REPLACE INTO drivers (id, name, canton, available)
-            VALUES (
-                (SELECT id FROM drivers WHERE name=?),
-                ?, ?, ?
-            )
-        """, (name, name, canton, int(available)))
-        conn.commit()
-        st.success("Status updated")
-
-    st.subheader("📋 Assigned Jobs")
-    jobs = c.execute("""
-        SELECT id, company, canton, urgency, message
-        FROM requests
-        WHERE assigned_driver=? AND status='Pending'
-    """, (name,)).fetchall()
-
-    for j in jobs:
-        st.write(j)
-        if st.button(f"Mark completed #{j[0]}"):
-            c.execute("""
-                UPDATE requests SET status='Completed'
-                WHERE id=?
-            """, (j[0],))
-            c.execute("""
-                UPDATE drivers SET available=1 WHERE name=?
-            """, (name,))
+                INSERT INTO requests
+                (company, phone, canton, urgency, message, created_at, status)
+                VALUES (?,?,?,?,?,?,?)
+            """, (
+                company, phone, canton, urgency,
+                message, datetime.now().isoformat(), "Pending"
+            ))
             conn.commit()
-            st.success("Job completed")
-            st.rerun()
+            st.success(T[LANG]["success"])
 
-# =================================================
-# 🔐 ADMIN
-# =================================================
-elif role == "Admin":
-    st.subheader("🔐 Admin Login")
-    pin = st.text_input("PIN", type="password")
+# =========================
+# DRIVER PORTAL (PIN)
+# =========================
+elif mode == T[LANG]["driver"]:
+    pin = st.text_input(T[LANG]["driver_pin"], type="password")
 
-    valid = c.execute(
-        "SELECT 1 FROM admin WHERE pin=?",
+    driver = c.execute(
+        "SELECT name FROM drivers WHERE pin=?",
         (pin,)
     ).fetchone()
 
-    if valid:
+    if not driver and pin:
+        st.error(T[LANG]["invalid_pin"])
+
+    if driver:
+        driver_name = driver[0]
+        st.subheader(T[LANG]["assigned_jobs"])
+
+        jobs = c.execute("""
+            SELECT id, company, canton, urgency
+            FROM requests
+            WHERE assigned_driver=? AND status!='Completed'
+        """, (driver_name,)).fetchall()
+
+        for j in jobs:
+            st.write(f"**{j[1]}** – {j[2]} ({j[3]})")
+            if st.button(T[LANG]["complete"], key=f"drv_{j[0]}"):
+                c.execute(
+                    "UPDATE requests SET status='Completed' WHERE id=?",
+                    (j[0],)
+                )
+                c.execute(
+                    "UPDATE drivers SET available=1 WHERE name=?",
+                    (driver_name,)
+                )
+                conn.commit()
+                st.experimental_rerun()
+
+# =========================
+# ADMIN
+# =========================
+else:
+    pin = st.text_input(T[LANG]["admin_pin"], type="password")
+    admin_pin = c.execute("SELECT pin FROM admin").fetchone()[0]
+
+    if pin != admin_pin:
+        st.error(T[LANG]["invalid"])
+    else:
         st.success("Access granted")
 
-        st.subheader("📊 Requests")
-        rows = c.execute("""
+        requests = c.execute("""
             SELECT id, company, canton, urgency, status, assigned_driver
-            FROM requests ORDER BY created_at DESC
+            FROM requests
+            WHERE status!='Completed'
+            ORDER BY id DESC
         """).fetchall()
-        for r in rows:
-            st.write(r)
 
-        st.subheader("🚛 Drivers")
         drivers = c.execute("""
-            SELECT name, canton, available FROM drivers
+            SELECT name FROM drivers WHERE available=1
         """).fetchall()
-        for d in drivers:
-            st.write(d)
 
-    else:
-        st.info("Enter admin PIN")
+        driver_names = [d[0] for d in drivers]
 
+        for r in requests:
+            st.write(f"**{r[1]}** – {r[2]} ({r[3]}) | {r[4]}")
+
+            if not r[5] and driver_names:
+                chosen = st.selectbox(
+                    T[LANG]["assign"],
+                    driver_names,
+                    key=f"a_{r[0]}"
+                )
+                if st.button("Assign", key=f"b_{r[0]}"):
+                    c.execute("""
+                        UPDATE requests
+                        SET assigned_driver=?, status='Assigned'
+                        WHERE id=?
+                    """, (chosen, r[0]))
+                    c.execute("""
+                        UPDATE drivers SET available=0 WHERE name=?
+                    """, (chosen,))
+                    conn.commit()
+                    st.experimental_rerun()
+
+            if r[5]:
+                if st.button(T[LANG]["complete"], key=f"c_{r[0]}"):
+                    c.execute(
+                        "UPDATE requests SET status='Completed' WHERE id=?",
+                        (r[0],)
+                    )
+                    c.execute(
+                        "UPDATE drivers SET available=1 WHERE name=?",
+                        (r[5],)
+                    )
+                    conn.commit()
+                    st.experimental_rerun()
